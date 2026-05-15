@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Master Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0f172a;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .pixel-font {
+            font-family: 'Press+Start+2P', cursive;
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-game {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 0 #1e40af;
+        }
+
+        .btn-game:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #1e40af;
+        }
+
+        .xp-bar-fill {
+            transition: width 0.5s ease-out;
+        }
+
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .option-card:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="game-container" class="w-full max-w-2xl relative">
+        <!-- Main Game UI will be rendered here -->
+    </div>
+
+    <script>
+        // Game Data from the PDF Content
+        const missions = [
+            {
+                id: 1,
+                title: "Misi 1: Pengenalan Komponen",
+                questions: [
+                    { q: "Apa nama 'Otak Utama' dalam proyek jam digital ini?", a: ["Arduino Uno", "Raspberry Pi", "Power Supply", "Buzzer"], correct: 0, img: "https://images.unsplash.com/photo-1553406830-ef2513450d76?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Modul apa yang berfungsi menyimpan waktu asli (Real Time)?", a: ["LCD 20x4", "DS3231", "Resistor", "Breadboard"], correct: 1, img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Komponen yang mengeluarkan suara 'tik' setiap detik adalah...", a: ["Lampu LED", "LCD", "Buzzer", "Sensor Gerak"], correct: 2, img: "https://images.unsplash.com/photo-1563770660941-20978e870e26?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Berapa jumlah baris pada LCD yang digunakan di proyek ini?", a: ["2 Baris", "4 Baris", "10 Baris", "1 Baris"], correct: 1, img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Apa fungsi kabel jumper?", a: ["Penyimpan listrik", "Layar tampilan", "Penghubung antar komponen", "Pendingin Arduino"], correct: 2, img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=200&auto=format&fit=crop" }
+                ]
+            },
+            {
+                id: 2,
+                title: "Misi 2: Pin & Koneksi",
+                questions: [
+                    { q: "Pin SDA pada RTC DS3231 dihubungkan ke Pin mana pada Arduino Uno?", a: ["Pin 13", "Pin A4", "Pin 5V", "Pin GND"], correct: 1, img: "https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Pin Buzzer (+) dihubungkan ke Digital Pin nomor berapa?", a: ["Pin 2", "Pin 4", "Pin 8", "Pin 10"], correct: 2, img: "https://images.unsplash.com/photo-159742324403d-d19504ba2f37?q=80&w=200&auto=format&fit=crop" },
+                    { q: "SCL pada RTC dihubungkan ke pin...", a: ["Pin A5", "Pin A0", "Pin 7", "Pin 6"], correct: 0, img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Pin EN pada LCD dalam kode program dihubungkan ke pin...", a: ["Pin 7", "Pin 6", "Pin 5", "Pin 4"], correct: 1, img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=200&auto=format&fit=crop" },
+                    { q: "Berapa tegangan VCC yang dibutuhkan RTC?", a: ["12V", "3.3V", "5V", "220V"], correct: 2, img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=200&auto=format&fit=crop" }
+                ]
+            }
+            // More missions can be added following this pattern
+        ];
+
+        // State Management
+        let gameState = 'welcome'; // welcome, name-input, map, quiz, result
+        let playerName = '';
+        let currentMissionIndex = 0;
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let xp = 0;
+
+        const container = document.getElementById('game-container');
+
+        function render() {
+            container.innerHTML = '';
+            
+            if (gameState === 'welcome') {
+                container.innerHTML = `
+                    <div class="glass-card p-8 rounded-3xl text-center shadow-2xl">
+                        <div class="mb-6 animate-float">
+                            <span class="text-6xl">⏰</span>
+                        </div>
+                        <h1 class="text-3xl font-extrabold mb-4 text-blue-400">WELCOME TO ARDUINO CLOCK MASTER!</h1>
+                        <p class="text-slate-300 mb-8">Siapkan dirimu untuk menjadi ahli robotika. Taklukkan 10 misi kuis jam digital!</p>
+                        <button onclick="changeState('name-input')" class="btn-game bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-xl font-bold text-lg w-full">
+                            MULAI PETUALANGAN
+                        </button>
+                    </div>
+                `;
+            } else if (gameState === 'name-input') {
+                container.innerHTML = `
+                    <div class="glass-card p-8 rounded-3xl shadow-2xl">
+                        <h2 class="text-2xl font-bold mb-6 text-center">Siapa namamu, Calon Engineer?</h2>
+                        <input type="text" id="name-field" placeholder="Masukkan Nama..." class="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-xl mb-6 text-xl outline-none focus:border-blue-500 transition-all">
+                        <button onclick="saveName()" class="btn-game bg-green-600 hover:bg-green-500 px-8 py-4 rounded-xl font-bold text-lg w-full">
+                            KONFIRMASI NAMA
+                        </button>
+                    </div>
+                `;
+            } else if (gameState === 'map') {
+                container.innerHTML = `
+                    <div class="glass-card p-6 rounded-3xl shadow-2xl">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <p class="text-xs text-slate-400">PLAYER</p>
+                                <p class="font-bold text-blue-400">${playerName}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-slate-400">TOTAL XP</p>
+                                <p class="font-bold text-yellow-400">${xp} XP</p>
+                            </div>
+                        </div>
+                        <h2 class="text-xl font-bold mb-4">PILIH MISI</h2>
+                        <div class="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2">
+                            ${missions.map((m, i) => `
+                                <div onclick="startQuiz(${i})" class="p-4 rounded-xl border-2 ${i <= currentMissionIndex ? 'border-blue-500 bg-blue-500/10 cursor-pointer' : 'border-slate-700 opacity-50 cursor-not-allowed'} flex justify-between items-center transition-all hover:scale-[1.02]">
+                                    <div>
+                                        <span class="text-xs block text-blue-300">MISI ${m.id}</span>
+                                        <span class="font-semibold">${m.title}</span>
+                                    </div>
+                                    <span class="text-2xl">${i < currentMissionIndex ? '✅' : (i === currentMissionIndex ? '🎯' : '🔒')}</span>
+                                </div>
+                            `).join('')}
+                            <div class="p-4 rounded-xl border-2 border-slate-700 opacity-50 flex justify-between items-center">
+                                <div>
+                                    <span class="text-xs block text-slate-400">MISI 3-10</span>
+                                    <span class="font-semibold italic text-slate-500">Coming Soon...</span>
+                                </div>
+                                <span class="text-2xl">🔒</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (gameState === 'quiz') {
+                const mission = missions[currentMissionIndex];
+                const question = mission.questions[currentQuestionIndex];
+                
+                container.innerHTML = `
+                    <div class="glass-card p-6 rounded-3xl shadow-2xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-xs font-bold text-blue-400">MISI ${mission.id}: PERTANYAAN ${currentQuestionIndex + 1}/5</span>
+                            <span class="text-xs font-bold text-yellow-400">${xp} XP</span>
+                        </div>
+                        
+                        <div class="w-full bg-slate-800 h-2 rounded-full mb-6">
+                            <div class="xp-bar-fill bg-blue-500 h-full rounded-full" style="width: ${(currentQuestionIndex / 5) * 100}%"></div>
+                        </div>
+
+                        <div class="mb-6 flex justify-center">
+                            <img src="${question.img}" class="w-48 h-32 object-cover rounded-xl border-4 border-slate-700 shadow-lg" onerror="this.src='https://via.placeholder.com/200?text=Arduino+Project'">
+                        </div>
+
+                        <h3 class="text-lg font-bold mb-6 text-center leading-tight">${question.q}</h3>
+
+                        <div class="grid grid-cols-1 gap-3">
+                            ${question.a.map((opt, i) => `
+                                <button onclick="checkAnswer(${i})" class="option-card w-full p-4 rounded-xl border-2 border-slate-700 text-left transition-all flex items-center hover:bg-slate-700/50">
+                                    <span class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center mr-4 text-xs font-bold">${String.fromCharCode(65 + i)}</span>
+                                    ${opt}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (gameState === 'result') {
+                container.innerHTML = `
+                    <div class="glass-card p-8 rounded-3xl text-center shadow-2xl">
+                        <div class="mb-6">
+                            <span class="text-6xl">🏆</span>
+                        </div>
+                        <h2 class="text-3xl font-extrabold mb-2 text-green-400">MISI BERHASIL!</h2>
+                        <p class="text-slate-300 mb-6">Hebat, <strong>${playerName}</strong>! Kamu telah menyelesaikan Misi ${missions[currentMissionIndex].id}.</p>
+                        
+                        <div class="bg-slate-800/50 p-6 rounded-2xl mb-8 border border-slate-700">
+                            <p class="text-slate-400 text-sm uppercase mb-1">XP Diperoleh</p>
+                            <p class="text-4xl font-black text-yellow-400">+500 XP</p>
+                        </div>
+
+                        <button onclick="changeState('map')" class="btn-game bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-xl font-bold text-lg w-full">
+                            KEMBALI KE PETA
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Logic Functions
+        function changeState(newState) {
+            gameState = newState;
+            render();
+        }
+
+        function saveName() {
+            const val = document.getElementById('name-field').value;
+            if (val.trim()) {
+                playerName = val;
+                changeState('map');
+            } else {
+                alert("Masukkan namamu dulu ya!");
+            }
+        }
+
+        function startQuiz(index) {
+            if (index > currentMissionIndex) return;
+            currentMissionIndex = index;
+            currentQuestionIndex = 0;
+            gameState = 'quiz';
+            render();
+        }
+
+        function checkAnswer(choice) {
+            const correct = missions[currentMissionIndex].questions[currentQuestionIndex].correct;
+            
+            if (choice === correct) {
+                xp += 100;
+                currentQuestionIndex++;
+                if (currentQuestionIndex >= 5) {
+                    if(currentMissionIndex < missions.length - 1) {
+                         currentMissionIndex++;
+                    }
+                    gameState = 'result';
+                }
+            } else {
+                showFeedback("SALAH!", "Coba ingat lagi materi di PDF...");
+                return;
+            }
+            render();
+        }
+
+        function showFeedback(title, msg) {
+            const oldContent = container.innerHTML;
+            container.innerHTML = `
+                <div class="glass-card p-8 rounded-3xl text-center shadow-2xl border-red-500/50">
+                    <span class="text-6xl mb-4 block">❌</span>
+                    <h2 class="text-2xl font-bold text-red-400 mb-2">${title}</h2>
+                    <p class="text-slate-400 mb-6">${msg}</p>
+                    <button onclick="render()" class="btn-game bg-red-600 px-8 py-3 rounded-xl font-bold w-full">COBA LAGI</button>
+                </div>
+            `;
+        }
+
+        // Initialize
+        render();
+    </script>
+</body>
+</html>
